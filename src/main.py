@@ -1,8 +1,13 @@
 import discord
+import os
+from dotenv import load_dotenv
+from clientHandlers import BotMarketClient
 
 
-def main():
-    print("Hello, World")
+intents = discord.Intents.default()
+intents.message_content = True
 
-if __name__ == "__main__":
-    main()
+
+load_dotenv()
+client = BotMarketClient(intents = intents)
+client.run(os.getenv("TOKEN"))
