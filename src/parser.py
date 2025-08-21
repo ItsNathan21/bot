@@ -1,0 +1,155 @@
+from enum import Enum
+import discord
+
+# I fucking love Enums (C is peak language)
+
+# different types of messages that can occur in the 
+# market channels
+class ParserValue(Enum):
+    DM = 0
+    REQUEST = 1
+    OTHER = 2
+    UNDEFINED = 3
+
+# the different values that each buy request stores
+class BuyingData(Enum):
+    PRICE = 0
+    PLATFORM = 1
+    SELLER_ID = 2
+    FAIL = 3
+    USER_ID = 4
+
+class SellingData(Enum):
+    PRICE = 0
+    PLATFORM = 1
+    LOCATION = 2
+    USER_ID = 3
+
+# Main class for parsing a singular message
+# This will parse it, store the information in the fields of buyingData and sellingData
+# This is intended to be used as 
+# val = MessageParser(msg)
+# val.parse()
+# then use the data in the fields val.buyingData and val.sellingData 
+# all other functions/fields are internal use only (starting with _)
+class MessageParser:
+    msg = None
+    msgType : ParserValue = ParserValue.UNDEFINED
+    buyingData = dict()
+    sellingData = dict()
+
+    # static data (NOT TO BE TOUCHED WITH self.thing only MessageParser.thing)
+    _Platforms = ["gh", "inPerson"]
+    _Locations = ["hunan", "exchange"] # TODO: update ts 
+    _cache = []
+    _MAX_CACHE_LEN = 10
+
+    def __init__(self, msg):
+        self.msg = msg
+
+    # just a queue
+    def _addToCache(self) -> None:
+        if MessageParser._cache.length() < MessageParser._MAX_CACHE_LEN:
+            MessageParser._cache[MessageParser._cache.length()] = self
+        else:
+            MessageParser._cache.pop(0)
+            MessageParser._cache[MessageParser._MAX_CACHE_LEN] = self
+        
+
+
+    # evaluate the DM request someone made
+    # This will look through the message cache, and update what they 
+    # DM'ed for. If there is a previous DM request (i.e two people
+    # asked to DM, and this is the second), it will give the request 
+    # to the first person, and ignore this one
+    def _evalDM(self) -> bool:
+        for cacheElem in reversed(MessageParser.cache):
+            match cacheElem.msgType:
+                case ParserValue.REQUEST: # saw a request first
+                    # store all the good shit
+                    self.buyingData[BuyingData.PRICE] = cacheElem.sellingData[SellingData.PRICE]
+                    self.buyingData[BuyingData.PLATFORM] = cacheElem.sellingData[SellingData.PLATFORM]
+                    self.buyingData[BuyingData.SELLER_ID] = cacheElem.msg.author.id
+                    return True
+                case ParserValue.DM:
+                    self.buyingData[BuyingData.FAIL] = True
+                    return False # did not succeed (someone else beat them to it)
+                case _:
+                    # if its a rando message then just ignore it
+                    continue
+        return False
+    
+    # returns True if the strings are almost equal
+    def _strAlmostEqual(self, str : str, cmp : str) -> bool:
+        str = str.lower()
+        cmp = cmp.lower()
+        diff : int = 0
+        # TODO: THIS IS REALLY SHIT NEED TO MAKE IT BETTER
+        for char in str:
+            if char not in cmp:
+                diff += 1
+        return diff > 1
+
+    def _wordInContainer(self, word : str, container : list[str]) -> tuple[str, bool]:
+        for elem in container:
+            if self._strAlmostEqual(word, elem):
+                return (elem, True)
+        return ("Fuck you", False)
+
+    
+    def _isWordALocation(self, word : str) -> tuple[str, bool]:
+        return self._wordInContainer(word, MessageParser._Locations)
+    
+    def _isWordAPlatform(self, word : str) -> tuple[str, bool]:
+        return self._wordInContainer(word, MessageParser._Platforms)
+    
+    def _isWordAPrice(self, word : str) -> tuple[float, bool]:
+        word = word.lower()
+        if word[0] == "$":
+            # strip any leading dollar signs
+            word = word[1:]
+        
+        try:
+            val = float(word)
+            return (val, True)
+        except ValueError:
+            return (69.420, False)
+        
+    # The message being parsed is a request 
+    # This will extract all of the information about the request, 
+    # and store it in the respective fields for the parser
+
+    def _evalRequest(self) -> None:
+        
+        for word in self.msg.content.lower().split():
+            (location, validLocation) = self._isWordALocation(word)
+            if validLocation:
+                self.sellingData[SellingData.LOCATION] = location
+
+            (platform, validPlatform) = self._isWordAPlatform(word)
+            if validPlatform:
+                self.sellingData[SellingData.PLATFORM] = platform
+
+            (price, validPrice) = self._isWordAPrice(word)
+            if validPrice:
+                self.sellingData[SellingData.PRICE] = price
+
+        self.sellingData[SellingData.USER_ID] = self.msg.author.id
+
+
+    # This is probably the only external function to be called
+    # It will take in a discord message, parse and extract 
+    def parse(self) -> None:
+        splitMsg = self.msg.content.split()
+        if "dm" in splitMsg:
+            self.msgType = ParserValue.DM
+            self._evalDM()
+            self._addToCache()
+        # if it mentions the Block-Seller role, then ima just 
+        # assume its someone asking to buy a block
+        for role in self.msg.role_mentions:
+            if role.name == "Block Seller":
+                self.msgType = ParserValue.REQUEST
+                self._evalRequest()
+                self._addToCache()
+
