@@ -1,5 +1,4 @@
 from enum import Enum
-import discord
 
 # I fucking love Enums (C is peak language)
 
@@ -12,14 +11,14 @@ class ParserValue(Enum):
     UNDEFINED = 3
 
 # the different values that each buy request stores
-class BuyingData(Enum):
+class SellingData(Enum):
     PRICE = 0
     PLATFORM = 1
     SELLER_ID = 2
     FAIL = 3
     USER_ID = 4
 
-class SellingData(Enum):
+class BuyingData(Enum):
     PRICE = 0
     PLATFORM = 1
     LOCATION = 2
@@ -33,11 +32,6 @@ class SellingData(Enum):
 # then use the data in the fields val.buyingData and val.sellingData 
 # all other functions/fields are internal use only (starting with _)
 class MessageParser:
-    msg = None
-    msgType : ParserValue = ParserValue.UNDEFINED
-    buyingData = dict()
-    sellingData = dict()
-
     # static data (NOT TO BE TOUCHED WITH self.thing only MessageParser.thing)
     _Platforms = ["gh", "inPerson"]
     _Locations = ["hunan", "exchange"] # TODO: update ts 
@@ -46,33 +40,32 @@ class MessageParser:
 
     def __init__(self, msg):
         self.msg = msg
+        self.msgType = ParserValue.UNDEFINED
+        self.buyingData = dict()
+        self.sellingData = dict()
 
     # just a queue
     def _addToCache(self) -> None:
-        if MessageParser._cache.length() < MessageParser._MAX_CACHE_LEN:
-            MessageParser._cache[MessageParser._cache.length()] = self
-        else:
+        if len(MessageParser._cache) >= MessageParser._MAX_CACHE_LEN:
             MessageParser._cache.pop(0)
-            MessageParser._cache[MessageParser._MAX_CACHE_LEN] = self
+        MessageParser._cache.append(self)
         
-
-
     # evaluate the DM request someone made
     # This will look through the message cache, and update what they 
     # DM'ed for. If there is a previous DM request (i.e two people
     # asked to DM, and this is the second), it will give the request 
     # to the first person, and ignore this one
     def _evalDM(self) -> bool:
-        for cacheElem in reversed(MessageParser.cache):
+        for cacheElem in reversed(MessageParser._cache):
             match cacheElem.msgType:
                 case ParserValue.REQUEST: # saw a request first
                     # store all the good shit
-                    self.buyingData[BuyingData.PRICE] = cacheElem.sellingData[SellingData.PRICE]
-                    self.buyingData[BuyingData.PLATFORM] = cacheElem.sellingData[SellingData.PLATFORM]
-                    self.buyingData[BuyingData.SELLER_ID] = cacheElem.msg.author.id
+                    self.buyingData[SellingData.PRICE] = cacheElem.sellingData[BuyingData.PRICE]
+                    self.buyingData[SellingData.PLATFORM] = cacheElem.sellingData[BuyingData.PLATFORM]
+                    self.buyingData[SellingData.SELLER_ID] = cacheElem.msg.author.id
                     return True
                 case ParserValue.DM:
-                    self.buyingData[BuyingData.FAIL] = True
+                    self.buyingData[SellingData.FAIL] = True
                     return False # did not succeed (someone else beat them to it)
                 case _:
                     # if its a rando message then just ignore it
@@ -124,17 +117,17 @@ class MessageParser:
         for word in self.msg.content.lower().split():
             (location, validLocation) = self._isWordALocation(word)
             if validLocation:
-                self.sellingData[SellingData.LOCATION] = location
+                self.sellingData[BuyingData.LOCATION] = location
 
             (platform, validPlatform) = self._isWordAPlatform(word)
             if validPlatform:
-                self.sellingData[SellingData.PLATFORM] = platform
+                self.sellingData[BuyingData.PLATFORM] = platform
 
             (price, validPrice) = self._isWordAPrice(word)
             if validPrice:
-                self.sellingData[SellingData.PRICE] = price
+                self.sellingData[BuyingData.PRICE] = price
 
-        self.sellingData[SellingData.USER_ID] = self.msg.author.id
+        self.sellingData[BuyingData.USER_ID] = self.msg.author.id
 
 
     # This is probably the only external function to be called
@@ -145,10 +138,11 @@ class MessageParser:
             self.msgType = ParserValue.DM
             self._evalDM()
             self._addToCache()
+            return
         # if it mentions the Block-Seller role, then ima just 
         # assume its someone asking to buy a block
         for role in self.msg.role_mentions:
-            if role.name == "Block Seller":
+            if role.name == "Block-Seller":
                 self.msgType = ParserValue.REQUEST
                 self._evalRequest()
                 self._addToCache()
