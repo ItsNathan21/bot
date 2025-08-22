@@ -32,7 +32,7 @@ class BuyingData(Enum):
 # then use the data in the fields val.buyingData and val.sellingData 
 # all other functions/fields are internal use only (starting with _)
 class MessageParser:
-    # static data (NOT TO BE TOUCHED WITH self.thing only MessageParser.thing)
+
     _Platforms = ["gh", "inPerson"]
     _Locations = ["hunan", "exchange"] # TODO: update ts 
     _cache = []
@@ -71,17 +71,20 @@ class MessageParser:
                     # if its a rando message then just ignore it
                     continue
         return False
-    
-    # returns True if the strings are almost equal
-    def _strAlmostEqual(self, str : str, cmp : str) -> bool:
-        str = str.lower()
-        cmp = cmp.lower()
-        diff : int = 0
-        # TODO: THIS IS REALLY SHIT NEED TO MAKE IT BETTER
-        for char in str:
-            if char not in cmp:
+
+    def _strAlmostEqual(self, s1 : str, s2 : str) -> bool:
+        len_diff = abs(len(s1) - len(s2))
+        if len_diff > 1: return False
+        if abs(len(s1) - len(s2)) > 1: return False
+        
+        s1 = set(s1.lower())
+        s2 = set(s2.lower())
+        print(f"{s1} {s2}")
+        diff = 0
+        for char in s1:
+            if char not in s2: 
                 diff += 1
-        return diff > 1
+        return diff <= 1
 
     def _wordInContainer(self, word : str, container : list[str]) -> tuple[str, bool]:
         for elem in container:
