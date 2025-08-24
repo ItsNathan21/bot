@@ -12,17 +12,15 @@ class ParserValue(Enum):
 
 # the different values that each buy request stores
 class SellingData(Enum):
-    PRICE = 0
-    PLATFORM = 1
-    SELLER_ID = 2
-    FAIL = 3
-    USER_ID = 4
+    PRICE = 0 # how much they sold the block for
+    PLATFORM = 1 # what platform did they sell the block on
+    BUYER_ID = 2 # who are they selling a block to
+    FAIL = 3 # failed to sell a block (double DM'ing)
 
 class BuyingData(Enum):
-    PRICE = 0
-    PLATFORM = 1
-    LOCATION = 2
-    USER_ID = 3
+    PRICE = 0 # price they bought a block for
+    PLATFORM = 1 # platform they bought a block for
+    LOCATION = 2 # location they bought a block at
 
 # Main class for parsing a singular message
 # This will parse it, store the information in the fields of buyingData and sellingData
@@ -60,12 +58,12 @@ class MessageParser:
             match cacheElem.msgType:
                 case ParserValue.REQUEST: # saw a request first
                     # store all the good shit
-                    self.buyingData[SellingData.PRICE] = cacheElem.sellingData[BuyingData.PRICE]
-                    self.buyingData[SellingData.PLATFORM] = cacheElem.sellingData[BuyingData.PLATFORM]
-                    self.buyingData[SellingData.SELLER_ID] = cacheElem.msg.author.id
+                    self.sellingData[SellingData.PRICE] = cacheElem.buyingData[BuyingData.PRICE]
+                    self.sellingData[SellingData.PLATFORM] = cacheElem.buyingData[BuyingData.PLATFORM]
+                    self.sellingData[SellingData.BUYER_ID] = cacheElem.msg.author.id
                     return True
                 case ParserValue.DM:
-                    self.buyingData[SellingData.FAIL] = True
+                    self.sellingData[SellingData.FAIL] = True
                     return False # did not succeed (someone else beat them to it)
                 case _:
                     # if its a rando message then just ignore it
@@ -79,7 +77,6 @@ class MessageParser:
         
         s1 = set(s1.lower())
         s2 = set(s2.lower())
-        print(f"{s1} {s2}")
         diff = 0
         for char in s1:
             if char not in s2: 
@@ -120,17 +117,15 @@ class MessageParser:
         for word in self.msg.content.lower().split():
             (location, validLocation) = self._isWordALocation(word)
             if validLocation:
-                self.sellingData[BuyingData.LOCATION] = location
+                self.buyingData[BuyingData.LOCATION] = location
 
             (platform, validPlatform) = self._isWordAPlatform(word)
             if validPlatform:
-                self.sellingData[BuyingData.PLATFORM] = platform
+                self.buyingData[BuyingData.PLATFORM] = platform
 
             (price, validPrice) = self._isWordAPrice(word)
             if validPrice:
-                self.sellingData[BuyingData.PRICE] = price
-
-        self.sellingData[BuyingData.USER_ID] = self.msg.author.id
+                self.buyingData[BuyingData.PRICE] = price
 
 
     # This is probably the only external function to be called

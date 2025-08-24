@@ -1,6 +1,7 @@
 import discord
 import json
 from parser import MessageParser
+from data import BlockData
 
 class BotMarketClient(discord.Client):
 
@@ -11,8 +12,5 @@ class BotMarketClient(discord.Client):
         if message.author == self.user: return
         parsedMsg : MessageParser = MessageParser(message)
         parsedMsg.parse()
-        print(parsedMsg.buyingData)
-        print(parsedMsg.sellingData)
-
-    async def on_message_delete(self, message):
-        await message.channel.send(f"@{message.author.name} I see you deleted something")
+        BlockData.storeData(parsedMsg)
+        
